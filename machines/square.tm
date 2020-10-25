@@ -1,6 +1,16 @@
 start 0 accept 0 S
-start 1 gof1 0 R
-start 2 gof2 0 R
+start 1 sgof1 0 R
+start 2 sgof2 0 R
+
+sgof1 1 check_if_zero 0 R
+sgof1 1 gof1 1 R
+sgof1 2 gof1 2 R
+
+check_if_zero 0 accept 0 S
+
+sgof2 2 check_if_zero 0 R
+sgof2 1 gof2 1 R
+sgof2 2 gof2 2 R
 
 gof1 1 checkr 0 R
 gof1 1 gof1 1 R
