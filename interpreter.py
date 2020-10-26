@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import sys
 from enum import Enum
 from dataclasses import dataclass
@@ -39,7 +39,7 @@ class Move:
 
 
 class MachineDefinition:
-    
+
     def __init__(self, transitions: [Transition]):
         self._parse_transitions(transitions)
 
@@ -159,7 +159,7 @@ def parse_transitions(filepath: str) -> [Transition]:
         print(e)
         sys.exit(1)
     return transitions
- 
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
