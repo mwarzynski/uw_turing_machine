@@ -81,8 +81,6 @@ class MachineState:
         return Position(self._state, self._tape[self._head])
 
     def do_move(self, move: Move):
-        pos = self.position()
-
         # Update state to destination.
         self._state = move.state_target
 
@@ -101,8 +99,6 @@ class MachineState:
                 self._tape = self._tape + [BLANK]
         else: # move.direction == DIRECTION_STAY:
             pass
-
-        pos_next = self.position()
 
 
 class Machine:
