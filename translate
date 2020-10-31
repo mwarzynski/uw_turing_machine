@@ -1,0 +1,76 @@
+#!/usr/bin/python3
+import sys
+from enum import Enum
+from dataclasses import dataclass
+from typing import NewType, Iterable
+
+
+Letter = NewType('Letter', str)
+State = NewType('State', str)
+Direction = NewType('Direction', str)
+
+BLANK: Letter = "0"
+STATE_INIT: State = "start"
+STATE_ACCEPT: State = "accept"
+STATE_REJECT: State = "reject"
+DIRECTION_LEFT: Direction = "L"
+DIRECTION_RIGHT: Direction = "R"
+DIRECTION_STAY: Direction = "S"
+
+
+@dataclass
+class Transition:
+    state_current: State
+    letter_current: Letter
+    state_target: State
+    letter_to_write: Letter
+    direction: Direction
+
+    def __str__(self):
+        return f"{self.state_current} {self.letter_current} {self.state_target} "\
+               f"{self.letter_to_write} {self.direction}"
+
+
+@dataclass
+class TransitionTwoTape:
+    state_current: State
+    letter_current: Letter
+    letter2_current: Letter
+    state_target: State
+    letter_to_write: Letter
+    letter2_to_write: Letter
+    direction1: Direction
+    direction2: Direction
+
+
+def translate(transitions: Iterable[TransitionTwoTape]) -> Iterable[Transition]:
+    return [Transition("start", "1", "accept", "0", "S")]
+
+
+def parse_file(filepath: str) -> Iterable[TransitionTwoTape]:
+    transitions: [Transition] = []
+    try:
+        with open(filepath, "r") as f:
+            for line in f.readlines():
+                line = line.replace("\n", "")
+                if len(line.replace(" ", "")) == 0:
+                    continue
+                if len(line) >= 2 and line[:2] == "//":
+                    continue
+                transitions.append(TransitionTwoTape(*line.split(" ")))
+    except FileNotFoundError as e:
+        print(e)
+        sys.exit(1)
+    return transitions
+
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Example: ./translate <path_to_a_two_tape_turing_machine>")
+        sys.exit(0)
+
+    transitions = parse_file(sys.argv[1])
+    transitions_one_tape = translate(transitions)
+    print("\n".join([str(t) for t in transitions_one_tape]))
+
