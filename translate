@@ -9,6 +9,7 @@ Letter = NewType('Letter', str)
 State = NewType('State', str)
 Direction = NewType('Direction', str)
 
+LETTER_BEGIN: Letter = "#"
 BLANK: Letter = "0"
 STATE_INIT: State = "start"
 STATE_ACCEPT: State = "accept"
@@ -16,6 +17,9 @@ STATE_REJECT: State = "reject"
 DIRECTION_LEFT: Direction = "L"
 DIRECTION_RIGHT: Direction = "R"
 DIRECTION_STAY: Direction = "S"
+
+ALPHABET = [BLANK, "1", "2"]
+ALPHABET_WITHOUT_BLANK = ALPHABET[1:]
 
 
 @dataclass
@@ -43,8 +47,114 @@ class TransitionTwoTape:
     direction2: Direction
 
 
+class Head(Enum):
+    H0 = 'H0'   # No head at this cell.
+    H1 = 'H1'   # 1st tape head at this cell.
+    H2 = 'H2'   # 2nd tape head at this cell.
+    H12 = 'H12' # 1st and 2nd heads at this cell.
+
+
+@dataclass
+class MachineLetter:
+    letter1: Letter
+    letter2: Letter
+    head: Head
+
+    def __str__(self):
+        return f"{self.letter1}_{self.letter2}_{self.head.value}"
+
+
+class Transitions:
+
+    def __init__(self):
+        self._transitions = []
+
+    def add(self, transition: Transition):
+        self._transitions.append(transition)
+
+    def get_all(self) -> Iterable[Transition]:
+        return self._transitions
+
+
+class AlphabetTranslator:
+
+    _name = "init"
+
+    _state_exit: str
+
+    def __init__(self, next_state: str):
+        self._state_exit = next_state
+
+    def _move_input_to_right(self) -> Iterable[Transition]:
+        step_name = self._name + "_inputmoveright"
+        t = Transitions()
+
+        state_step1 = step_name + "1"
+        state_step2 = step_name + "2"
+        state_exit = self._name + "_translatealphabet"
+
+        # 1. Go to right until we find a BLANK.
+        t.add(Transition("start", BLANK, state_exit, LETTER_BEGIN, DIRECTION_RIGHT))
+        for l in ALPHABET_WITHOUT_BLANK:
+            t.add(Transition("start", l, state_step1, LETTER_BEGIN+l, DIRECTION_STAY))
+        for l in ALPHABET_WITHOUT_BLANK:
+            t.add(Transition(state_step1, l, state_step1, l, DIRECTION_RIGHT))
+            t.add(Transition(state_step1, LETTER_BEGIN+l, state_step1, LETTER_BEGIN+l, DIRECTION_RIGHT))
+
+        t.add(Transition(state_step1, BLANK, state_step2, BLANK, DIRECTION_LEFT))
+
+        # 2. Move characters to right by one, going to the left (beginning) until # found.
+        for l in ALPHABET_WITHOUT_BLANK:
+            write_letter = state_step2+"_"+l
+            go_left = write_letter+"_goleft"
+            t.add(Transition(state_step2, l, write_letter, l, DIRECTION_RIGHT))
+            for ln in ALPHABET:
+                t.add(Transition(write_letter, ln, go_left, l, DIRECTION_LEFT))
+            t.add(Transition(go_left, l, state_step2, l, DIRECTION_LEFT))
+
+        for l in ALPHABET_WITHOUT_BLANK:
+            t.add(Transition(state_step2, LETTER_BEGIN+l, state_exit, LETTER_BEGIN, DIRECTION_RIGHT))
+
+        return t.get_all()
+
+    def _change_alphabet(self) -> Iterable[Transition]:
+        step_name = self._name + "_translatealphabet"
+
+        state_step1 = step_name
+        state_step1_goback = step_name + "_goback"
+        state_step2_fixheads = step_name + "_fixheads"
+        state_exit = self._state_exit
+
+        t = Transitions()
+
+        for l in ALPHABET_WITHOUT_BLANK:
+            t.add(Transition(state_step1, l, state_step1, MachineLetter(l, BLANK, Head.H0), DIRECTION_RIGHT))
+        t.add(Transition(state_step1, BLANK, state_step1_goback, MachineLetter(BLANK, BLANK, Head.H0), DIRECTION_LEFT))
+
+        for l in ALPHABET_WITHOUT_BLANK:
+            t.add(Transition(state_step1_goback, MachineLetter(l, BLANK, Head.H0), state_step1_goback, MachineLetter(l, BLANK, Head.H0), DIRECTION_LEFT))
+
+        t.add(Transition(state_step1_goback, LETTER_BEGIN, state_step2_fixheads, LETTER_BEGIN, DIRECTION_RIGHT))
+
+        for l in ALPHABET:
+            t.add(Transition(state_step2_fixheads, MachineLetter(l, BLANK, Head.H0), state_exit, MachineLetter(l, BLANK, Head.H12), DIRECTION_LEFT))
+
+        return t.get_all()
+
+    def translate(self) -> Iterable[Transition]:
+        transitions = self._move_input_to_right()
+        transitions += self._change_alphabet()
+        return transitions
+
+
 def translate(transitions: Iterable[TransitionTwoTape]) -> Iterable[Transition]:
-    return [Transition("start", "1", "accept", "0", "S")]
+    transitions = []
+
+    # Move input by 1 field to right.
+    # Set the first cell as # (character which defines the beginning).
+    transitions += AlphabetTranslator(next_state="accept").translate()
+
+    return transitions
 
 
 def parse_file(filepath: str) -> Iterable[TransitionTwoTape]:
