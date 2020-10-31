@@ -3,41 +3,71 @@ import sys
 from enum import Enum
 from dataclasses import dataclass
 from typing import NewType, Iterable
+import itertools
+import hashlib
 
 
 Letter = NewType('Letter', str)
 State = NewType('State', str)
 Direction = NewType('Direction', str)
 
-LETTER_BEGIN: Letter = "#"
-BLANK: Letter = "0"
-STATE_INIT: State = "start"
-STATE_ACCEPT: State = "accept"
-STATE_REJECT: State = "reject"
-DIRECTION_LEFT: Direction = "L"
-DIRECTION_RIGHT: Direction = "R"
-DIRECTION_STAY: Direction = "S"
+LETTER_BEGIN: Letter = Letter("#")
+BLANK: Letter = Letter("0")
+STATE_INIT: State = State("start")
+STATE_ACCEPT: State = State("accept")
+STATE_REJECT: State = State("reject")
+DIRECTION_LEFT: Direction = Direction("L")
+DIRECTION_RIGHT: Direction = Direction("R")
+DIRECTION_STAY: Direction = Direction("S")
 
-ALPHABET = [BLANK, "1", "2"]
-ALPHABET_WITHOUT_BLANK = ALPHABET[1:]
+DIRECTIONS = [DIRECTION_LEFT, DIRECTION_RIGHT, DIRECTION_STAY]
+
+ALPHABET = [BLANK]
+ALPHABET_WITHOUT_BLANK = []
+
+
+class Head(Enum):
+    H0 = 'H0'   # No head at this cell.
+    H1 = 'H1'   # 1st tape head at this cell.
+    H2 = 'H2'   # 2nd tape head at this cell.
+    H12 = 'H12' # 1st and 2nd heads at this cell.
+
+
+HEADS = [Head.H0, Head.H1, Head.H2, Head.H12]
+
+
+def unique(values):
+    unique_list = {}
+    results = []
+    for v in values:
+        h = v.md5()
+        if h in unique_list:
+            continue
+        unique_list[h] = None
+        results.append(v)
+    return results
 
 
 @dataclass
 class Transition:
-    state_current: State
+    state: State
     letter_current: Letter
     state_target: State
     letter_to_write: Letter
     direction: Direction
 
     def __str__(self):
-        return f"{self.state_current} {self.letter_current} {self.state_target} "\
+        return f"{self.state} {self.letter_current} {self.state_target} "\
                f"{self.letter_to_write} {self.direction}"
+
+    def md5(self):
+        result = hashlib.md5(str(self).encode("utf-8"))
+        return result.digest()
 
 
 @dataclass
 class TransitionTwoTape:
-    state_current: State
+    state: State
     letter_current: Letter
     letter2_current: Letter
     state_target: State
@@ -47,11 +77,19 @@ class TransitionTwoTape:
     direction2: Direction
 
 
-class Head(Enum):
-    H0 = 'H0'   # No head at this cell.
-    H1 = 'H1'   # 1st tape head at this cell.
-    H2 = 'H2'   # 2nd tape head at this cell.
-    H12 = 'H12' # 1st and 2nd heads at this cell.
+def prepare_alphabet(transitions: Iterable[TransitionTwoTape]):
+    alphabet = {}
+    for t in transitions:
+        alphabet[t.letter_current] = None
+        alphabet[t.letter2_current] = None
+        alphabet[t.letter_to_write] = None
+        alphabet[t.letter2_to_write] = None
+    for a in alphabet.keys():
+        if a == BLANK:
+            continue
+        ALPHABET.append(a)
+    for a in ALPHABET[1:]:
+        ALPHABET_WITHOUT_BLANK.append(a)
 
 
 @dataclass
@@ -76,7 +114,7 @@ class Transitions:
         return self._transitions
 
 
-class AlphabetTranslator:
+class TapeInitialiser:
 
     _name = "init"
 
@@ -94,9 +132,9 @@ class AlphabetTranslator:
         state_exit = self._name + "_translatealphabet"
 
         # 1. Go to right until we find a BLANK.
-        t.add(Transition("start", BLANK, state_exit, LETTER_BEGIN, DIRECTION_RIGHT))
+        t.add(Transition(STATE_INIT, BLANK, state_exit, LETTER_BEGIN, DIRECTION_RIGHT))
         for l in ALPHABET_WITHOUT_BLANK:
-            t.add(Transition("start", l, state_step1, LETTER_BEGIN+l, DIRECTION_STAY))
+            t.add(Transition(STATE_INIT, l, state_step1, LETTER_BEGIN+l, DIRECTION_STAY))
         for l in ALPHABET_WITHOUT_BLANK:
             t.add(Transition(state_step1, l, state_step1, l, DIRECTION_RIGHT))
             t.add(Transition(state_step1, LETTER_BEGIN+l, state_step1, LETTER_BEGIN+l, DIRECTION_RIGHT))
@@ -147,14 +185,318 @@ class AlphabetTranslator:
         return transitions
 
 
-def translate(transitions: Iterable[TransitionTwoTape]) -> Iterable[Transition]:
+@dataclass
+class TransitionPrepare:
+    name: State
+    letter1: Letter
+    letter2: Letter
+
+    def __str__(self):
+        return f"{self.name}_{self.letter1}_{self.letter2}"
+
+
+@dataclass
+class TransitionEmulate:
+    name: State
+    letter1: Letter
+    direction1: Direction
+
+    letter2: Letter
+    direction2: Direction
+
+    def __str__(self):
+        letter1 = f"{self.letter1}{self.direction1}"
+        letter2 = f"{self.letter2}{self.direction2}"
+        if self.letter1 == True:
+            letter1 = "DONE"
+        if self.letter2 == True:
+            letter2 = "DONE"
+        return f"{self.name}_{letter1}_{letter2}"
+
+
+class TransitionsEmulator:
+
+    start_state = "init"
+
+    _states: [State] = []
+
+    def _init_emulator(self) -> Iterable[Transition]:
+        t = Transitions()
+        t.add(Transition(
+            "init",
+            "#",
+            TransitionPrepare("input_letters", None, None),
+            "#start",
+            DIRECTION_RIGHT
+        ))
+        return t.get_all()
+
+    def _find_states(self, transitions: Iterable[TransitionTwoTape]):
+        for t in transitions:
+            if t.state not in self._states:
+                self._states.append(t.state)
+            if t.state_target not in self._states:
+                self._states.append(t.state_target)
+
+    def _find_input_letters(self) -> Iterable[Transition]:
+        t = Transitions()
+
+        step_name = "input_letters"
+
+        for found1, found2 in itertools.product([False, True], [False, True]):
+            for l1, l2 in itertools.product(ALPHABET, ALPHABET):
+                for sl1, sl2 in itertools.product(ALPHABET, ALPHABET):
+                    direction = DIRECTION_RIGHT
+                    if found1 and found2:
+                        direction = DIRECTION_LEFT
+                    l1v = sl1
+                    if not found1:
+                        l1v = None
+                    l2v = sl2
+                    if not found2:
+                        l2v = None
+
+                    t.add(Transition(TransitionPrepare(step_name, l1v, l2v), MachineLetter(l1, l2, Head.H0), TransitionPrepare(step_name, l1v, l2v), MachineLetter(l1, l2, Head.H0), direction))
+                    t.add(Transition(TransitionPrepare(step_name, l1v, l2v), MachineLetter(l1, l2, Head.H1), TransitionPrepare(step_name, l1, l2v), MachineLetter(l1, l2, Head.H1), direction))
+                    t.add(Transition(TransitionPrepare(step_name, l1v, l2v), MachineLetter(l1, l2, Head.H2), TransitionPrepare(step_name, l1v, l2), MachineLetter(l1, l2, Head.H2), direction))
+                    t.add(Transition(TransitionPrepare(step_name, l1v, l2v), MachineLetter(l1, l2, Head.H12), TransitionPrepare(step_name, l1, l2), MachineLetter(l1, l2, Head.H12), DIRECTION_LEFT))
+
+                    if found1 and found2:
+                        t.add(Transition(TransitionPrepare(step_name, l1v, l2v), BLANK, TransitionPrepare(step_name, l1v, l2v), BLANK, DIRECTION_LEFT))
+
+        return t.get_all()
+
+    def _emulate_the_transition(self, transition: TransitionTwoTape) -> Iterable[Transition]:
+        t = Transitions()
+
+        if transition.state_target in [STATE_ACCEPT, STATE_REJECT]:
+            t.add(Transition(
+                TransitionPrepare("input_letters", transition.letter_current, transition.letter2_current),
+                "#" + transition.state,
+                transition.state_target,
+                LETTER_BEGIN,
+                DIRECTION_STAY
+            ))
+        else:
+            t.add(Transition(
+                TransitionPrepare("input_letters", transition.letter_current, transition.letter2_current),
+                "#" + transition.state,
+                TransitionEmulate("emulate_move", transition.letter_to_write, transition.direction1, transition.letter2_to_write, transition.direction2),
+                "#" + transition.state_target,
+                DIRECTION_RIGHT
+            ))
+
+        t.add(Transition(
+            "emulate_move_DONE_DONE",
+            "#" + transition.state,
+            "input_letters_None_None",
+            "#" + transition.state,
+            DIRECTION_RIGHT
+        ))
+
+        return t.get_all()
+
+    def _emulate_the_move(self) -> Iterable[Transition]:
+        t = Transitions()
+        step_name = "emulate_move"
+
+        for l1, l2 in itertools.product(ALPHABET, ALPHABET):
+            for d1, d2 in itertools.product(DIRECTIONS, DIRECTIONS):
+                for ml1, ml2 in itertools.product(ALPHABET, ALPHABET):
+                    for done1, done2 in itertools.product([False, True], [False, True]):
+                        if done1 and done2:
+                            for h in [Head.H0, Head.H1, Head.H2, Head.H12]:
+                                state_done = TransitionEmulate(step_name, True, None, True, None)
+                                t.add(Transition(state_done, MachineLetter(l1, l2, h), state_done, MachineLetter(l1, l2, h), DIRECTION_LEFT))
+                            continue
+
+                        l1v = ml1
+                        if done1:
+                            l1v = True
+                        l2v = ml2
+                        if done2:
+                            l2v = True
+
+                        state = TransitionEmulate(step_name, l1v, d1, l2v, d2)
+
+                        t.add(Transition(state, MachineLetter(l1, l2, Head.H0), state, MachineLetter(l1, l2, Head.H0), DIRECTION_RIGHT))
+
+                        if not done1:
+                            state = TransitionEmulate(step_name, l1v, d1, l2v, d2)
+                            state_target = TransitionEmulate(step_name+"_do1", l1v, d1, l2v, d2)
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H1), state_target, MachineLetter(l1, l2, Head.H1), DIRECTION_STAY))
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H2), state, MachineLetter(l1, l2, Head.H2), DIRECTION_RIGHT))
+                        if not done2:
+                            state = TransitionEmulate(step_name, l1v, d1, l2v, d2)
+                            state_target = TransitionEmulate(step_name+"_do2", l1v, d1, l2v, d2)
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H2), state_target, MachineLetter(l1, l2, Head.H2), DIRECTION_STAY))
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H1), state, MachineLetter(l1, l2, Head.H1), DIRECTION_RIGHT))
+                        if not done1 and not done2:
+                            state = TransitionEmulate(step_name, l1v, d1, l2v, d2)
+                            state_target = TransitionEmulate(step_name+"_do12", l1v, d1, l2v, d2)
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
+
+        return t.get_all()
+
+    def _emulate_move_do2(self) -> Iterable[Transition]:
+        t = Transitions()
+        step_name = "emulate_move"
+
+        for l1, l2 in itertools.product(ALPHABET, ALPHABET):
+            for d1, d2 in itertools.product(DIRECTIONS, DIRECTIONS):
+                for sl1, sl2 in itertools.product(ALPHABET, ALPHABET):
+                    for done1 in [False, True]:
+                        l1v = sl1
+                        if done1:
+                            l1v = True
+
+                        if d2 == DIRECTION_STAY:
+                            state = TransitionEmulate(step_name+"_do2", l1v, d1, sl2, d2)
+                            state_target = TransitionEmulate(step_name, l1v, d1, True, None)
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H2), state_target, MachineLetter(l1, sl2, Head.H2), DIRECTION_STAY))
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, sl2, Head.H12), DIRECTION_STAY))
+
+                        if d2 == DIRECTION_LEFT:
+                            state = TransitionEmulate(step_name+"_do2", l1v, d1, sl2, d2)
+                            state_target = TransitionEmulate(step_name + "_do2r", l1v, d1, True, None)
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H2), state_target, MachineLetter(l1, sl2, Head.H0), DIRECTION_LEFT))
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, sl2, Head.H1), DIRECTION_LEFT))
+                            state_target2 = TransitionEmulate(step_name, l1v, d1, True, None)
+                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H2), DIRECTION_RIGHT))
+                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H1), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_RIGHT))
+                            for s in self._states:
+                                letter_meta = LETTER_BEGIN + s
+                                state_targetp = TransitionEmulate(step_name + "_do2rr", sl1, d1, sl2, d2)
+                                t.add(Transition(state_target, letter_meta, state_targetp, letter_meta, DIRECTION_RIGHT))
+                                t.add(Transition(state_targetp, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H2), DIRECTION_STAY))
+                                t.add(Transition(state_targetp, MachineLetter(l1, l2, Head.H1), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
+
+                        if d2 == DIRECTION_RIGHT:
+                            state = TransitionEmulate(step_name+"_do2", l1v, d1, sl2, d2)
+                            state_target = TransitionEmulate(step_name + "_do2l", l1v, d1, True, None)
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H2), state_target, MachineLetter(l1, sl2, Head.H0), DIRECTION_RIGHT))
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, sl2, Head.H1), DIRECTION_RIGHT))
+                            state_target2 = TransitionEmulate(step_name, l1v, d1, True, None)
+                            t.add(Transition(state_target, BLANK, state_target2, MachineLetter(BLANK, BLANK, Head.H2),DIRECTION_LEFT))
+                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H2), DIRECTION_LEFT))
+                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H1), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_LEFT))
+
+        return t.get_all()
+
+    def _emulate_move_do1(self) -> Iterable[Transition]:
+        t = Transitions()
+        step_name = "emulate_move"
+
+        for l1, l2 in itertools.product(ALPHABET, ALPHABET):
+            for d1, d2 in itertools.product(DIRECTIONS, DIRECTIONS):
+                for sl1, sl2 in itertools.product(ALPHABET, ALPHABET):
+                    for done2 in [False, True]:
+                        l2v = sl2
+                        if done2:
+                            l2v = True
+
+                        if d1 == DIRECTION_STAY:
+                            state = TransitionEmulate(step_name+"_do1", sl1, d1, l2v, d2)
+                            state_target = TransitionEmulate(step_name, True, None, l2v, d2)
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H1), state_target, MachineLetter(sl1, l2, Head.H1), DIRECTION_STAY))
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(sl1, l2, Head.H12), DIRECTION_STAY))
+
+                        if d1 == DIRECTION_LEFT:
+                            state = TransitionEmulate(step_name+"_do1", sl1, d1, l2v, d2)
+                            state_target = TransitionEmulate(step_name + "_do1r", True, None, l2v, d2)
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H1), state_target, MachineLetter(sl1, l2, Head.H0), DIRECTION_LEFT))
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(sl1, l2, Head.H2), DIRECTION_LEFT))
+                            state_target2 = TransitionEmulate(step_name, True, None, l2v, d2)
+                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H1), DIRECTION_RIGHT))
+                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H2), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_RIGHT))
+                            for s in self._states:
+                                letter_meta = LETTER_BEGIN + s
+                                state_targetp = TransitionEmulate(step_name + "_do1rr", sl1, d1, sl2, d2)
+                                t.add(Transition(state_target, letter_meta, state_targetp, letter_meta, DIRECTION_RIGHT))
+                                t.add(Transition(state_targetp, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H1), DIRECTION_STAY))
+                                t.add(Transition(state_targetp, MachineLetter(l1, l2, Head.H2), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
+
+                        if d1 == DIRECTION_RIGHT:
+                            state = TransitionEmulate(step_name+"_do1", sl1, d1, l2v, d2)
+                            state_target = TransitionEmulate(step_name + "_do1l", True, None, l2v, d2)
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H1), state_target, MachineLetter(sl1, l2, Head.H0), DIRECTION_RIGHT))
+                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(sl1, l2, Head.H2), DIRECTION_RIGHT))
+                            state_target2 = TransitionEmulate(step_name, True, None, l2v, d2)
+                            t.add(Transition(state_target, BLANK, state_target2, MachineLetter(BLANK, BLANK, Head.H1), DIRECTION_LEFT))
+                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H1), DIRECTION_LEFT))
+                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H2), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_LEFT))
+
+        return t.get_all()
+
+
+
+    def _emulate_move_do12(self) -> Iterable[Transition]:
+        t = Transitions()
+        step_name = "emulate_move"
+        for l1, l2 in itertools.product(ALPHABET, ALPHABET):
+            for d1, d2 in itertools.product(DIRECTIONS, DIRECTIONS):
+                for sl1, sl2 in itertools.product(ALPHABET, ALPHABET):
+                    if d1 == DIRECTION_STAY:
+                        state = TransitionEmulate(step_name+"_do12", sl1, d1, sl2, d2)
+                        state_target = TransitionEmulate(step_name+"_do2", True, None, sl2, d2)
+                        t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(sl1, l2, Head.H12), DIRECTION_STAY))
+                    if d1 == DIRECTION_LEFT:
+                        state1 = TransitionEmulate(step_name+"_do12", sl1, d1, sl2, d2)
+                        state2 = TransitionEmulate(step_name+"_do12l", sl1, d1, sl2, d2)
+                        t.add(Transition(state1, MachineLetter(l1, l2, Head.H12), state2, MachineLetter(sl1, l2, Head.H2), DIRECTION_LEFT))
+                        state1 = TransitionEmulate(step_name+"_do12l", sl1, d1, sl2, d2)
+                        state2 = TransitionEmulate(step_name+"_do2", True, None, sl2, d2)
+                        t.add(Transition(state1, MachineLetter(l1, l2, Head.H0), state2, MachineLetter(l1, l2, Head.H1), DIRECTION_RIGHT))
+                        for s in self._states:
+                            letter_meta = LETTER_BEGIN + s
+                            state1p = TransitionEmulate(step_name + "_do12ll", sl1, d1, sl2, d2)
+                            t.add(Transition(state1, letter_meta, state1p, letter_meta, DIRECTION_RIGHT))
+                            t.add(Transition(state1p, MachineLetter(l1, l2, Head.H0), state2, MachineLetter(l1, l2, Head.H1), DIRECTION_STAY))
+                            t.add(Transition(state1p, MachineLetter(l1, l2, Head.H2), state2, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
+
+                    if d1 == DIRECTION_RIGHT:
+                        state1 = TransitionEmulate(step_name+"_do12", sl1, d1, sl2, d2)
+                        state2 = TransitionEmulate(step_name+"_do12r", sl1, d1, sl2, d2)
+                        t.add(Transition(state1, MachineLetter(l1, l2, Head.H12), state2, MachineLetter(sl1, l2, Head.H2), DIRECTION_RIGHT))
+                        state1 = TransitionEmulate(step_name+"_do12r", sl1, d1, sl2, d2)
+                        state2 = TransitionEmulate(step_name+"_do2", True, None, sl2, d2)
+                        t.add(Transition(state1, BLANK, state2, MachineLetter(BLANK, BLANK, Head.H1), DIRECTION_LEFT))
+                        t.add(Transition(state1, MachineLetter(l1, l2, Head.H0), state2, MachineLetter(l1, l2, Head.H1), DIRECTION_LEFT))
+
+        return t.get_all()
+
+    def translate(self, transitions: Iterable[TransitionTwoTape]) -> Iterable[Transition]:
+        self._find_states(transitions)
+
+        result = []
+        result += self._init_emulator()
+        result += self._find_input_letters()
+        result += self._emulate_the_move()
+        result += self._emulate_move_do12()
+        result += self._emulate_move_do2()
+        result += self._emulate_move_do1()
+        for t in transitions:
+            result += self._emulate_the_transition(t)
+        return result
+
+
+def translate(transitions_two_tape: Iterable[TransitionTwoTape]) -> Iterable[Transition]:
+    prepare_alphabet(transitions_two_tape)
+    emulator = TransitionsEmulator()
+
     transitions = []
+    # 1.1 Move input by 1 field to right.
+    # 1.2 Set the first cell as # (character which defines the beginning).
+    # 1.3 Replace the alphabet to format {(CharTape1, CharTape2, Head)} + {#}.
+    #  In the end, head should be at the second cell (first input letter), right after # character
+    #  which indicates the beginning of tape.
+    transitions += TapeInitialiser(next_state=emulator.start_state).translate()
+    # 2 Emulate transitions.
+    transitions += emulator.translate(transitions_two_tape)
 
-    # Move input by 1 field to right.
-    # Set the first cell as # (character which defines the beginning).
-    transitions += AlphabetTranslator(next_state="accept").translate()
-
-    return transitions
+    return unique(transitions)
 
 
 def parse_file(filepath: str) -> Iterable[TransitionTwoTape]:
@@ -172,7 +514,6 @@ def parse_file(filepath: str) -> Iterable[TransitionTwoTape]:
         print(e)
         sys.exit(1)
     return transitions
-
 
 
 if __name__ == "__main__":
