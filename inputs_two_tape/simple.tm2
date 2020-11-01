@@ -1,0 +1,5 @@
+start 0 0 accept 0 0 S S
+start 1 0 do 2 0 S S
+start 2 0 do 1 1 R R
+do 2 0 do 1 1 S R
+do 1 0 accept 0 0 S S

@@ -142,7 +142,8 @@ class TapeInitialiser:
         t.add(Transition(state_step1, BLANK, state_step2, BLANK, DIRECTION_LEFT))
 
         # 2. Move characters to right by one, going to the left (beginning) until # found.
-        for l in ALPHABET_WITHOUT_BLANK:
+        for a, b in itertools.product(ALPHABET_WITHOUT_BLANK, ["#", ""]):
+            l = a + b
             write_letter = state_step2+"_"+l
             go_left = write_letter+"_goleft"
             t.add(Transition(state_step2, l, write_letter, l, DIRECTION_RIGHT))
@@ -151,7 +152,10 @@ class TapeInitialiser:
             t.add(Transition(go_left, l, state_step2, l, DIRECTION_LEFT))
 
         for l in ALPHABET_WITHOUT_BLANK:
-            t.add(Transition(state_step2, LETTER_BEGIN+l, state_exit, LETTER_BEGIN, DIRECTION_RIGHT))
+            state_before_exit = state_exit + f"_{l}"
+            t.add(Transition(state_step2, LETTER_BEGIN+l, state_before_exit, LETTER_BEGIN, DIRECTION_RIGHT))
+            for l2 in ALPHABET_WITHOUT_BLANK:
+                t.add(Transition(state_before_exit, l2, state_exit, l, DIRECTION_STAY))
 
         return t.get_all()
 

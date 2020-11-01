@@ -1,0 +1,16 @@
+start 0 0 accept 0 0 S S
+start 1 0 count 1 0 S S
+start 2 0 count 2 0 S S
+count 0 0 accept 0 0 S S
+count 1 0 count 0 1 R S
+count 2 0 count 0 2 R S
+count 1 1 write_1 0 1 R R
+count 2 1 count 0 0 R L
+count 1 2 count 0 0 R L
+count 2 2 write_2 0 2 R R
+write_1 0 0 count 0 1 S S
+write_1 1 0 count 1 1 S S
+write_1 2 0 count 2 1 S S
+write_2 0 0 count 0 2 S S
+write_2 1 0 count 1 2 S S
+write_2 2 0 count 2 2 S S
