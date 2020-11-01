@@ -159,7 +159,7 @@ def parse_transitions(filepath: str) -> [Transition]:
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Example: ./interpreter.py <path_to_turing_machine> <steps>")
+        print("Example: ./interpreter <path_to_turing_machine> <steps>")
         sys.exit(0)
 
     transitions = parse_transitions(sys.argv[1])
