@@ -1,21 +1,20 @@
 #!/usr/bin/python3
 import sys
-from enum import Enum
 from dataclasses import dataclass
-from typing import NewType
+from typing import NewType, Set
 
 
 Letter = NewType('Letter', str)
 State = NewType('State', str)
 Direction = NewType('Direction', str)
 
-BLANK: Letter = "0"
-STATE_INIT: State = "start"
-STATE_ACCEPT: State = "accept"
-STATE_REJECT: State = "reject"
-DIRECTION_LEFT: Direction = "L"
-DIRECTION_RIGHT: Direction = "R"
-DIRECTION_STAY: Direction = "S"
+BLANK: Letter = Letter("0")
+STATE_INIT: State = State("start")
+STATE_ACCEPT: State = State("accept")
+STATE_REJECT: State = State("reject")
+DIRECTION_LEFT: Direction = Direction("L")
+DIRECTION_RIGHT: Direction = Direction("R")
+DIRECTION_STAY: Direction = Direction("S")
 
 
 @dataclass
@@ -103,7 +102,7 @@ class MachineState:
 
 class Machine:
 
-    _states_visited: set()
+    _states_visited: Set[int]
 
     def __init__(self, definition: MachineDefinition):
         self._definition = definition
@@ -112,6 +111,7 @@ class Machine:
     def run(self, steps: int, tape_str: str) -> str:
         tape = list(tape_str)
         machines = [MachineState(tape, 0, STATE_INIT)]
+        accepts, rejects = [], []
         step_i = 0
         while step_i < steps:
             new_machines = []
@@ -157,7 +157,7 @@ def parse_transitions(filepath: str) -> [Transition]:
     return transitions
 
 
-if __name__ == "__main__":
+def main():
     if len(sys.argv) != 3:
         print("Example: ./interpreter <path_to_turing_machine> <steps>")
         sys.exit(0)
@@ -170,3 +170,7 @@ if __name__ == "__main__":
     machine = Machine(definition)
     result = machine.run(steps, tape)
     print(result)
+
+
+if __name__ == "__main__":
+    main()
