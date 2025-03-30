@@ -7,9 +7,9 @@ import itertools
 import hashlib
 
 
-Letter = NewType('Letter', str)
-State = NewType('State', str)
-Direction = NewType('Direction', str)
+Letter = NewType("Letter", str)
+State = NewType("State", str)
+Direction = NewType("Direction", str)
 
 LETTER_BEGIN: Letter = Letter("#")
 BLANK: Letter = Letter("0")
@@ -27,10 +27,10 @@ ALPHABET_WITHOUT_BLANK = []
 
 
 class Head(Enum):
-    H0 = 'H0'   # No head at this cell.
-    H1 = 'H1'   # 1st tape head at this cell.
-    H2 = 'H2'   # 2nd tape head at this cell.
-    H12 = 'H12' # 1st and 2nd heads at this cell.
+    H0 = "H0"  # No head at this cell.
+    H1 = "H1"  # 1st tape head at this cell.
+    H2 = "H2"  # 2nd tape head at this cell.
+    H12 = "H12"  # 1st and 2nd heads at this cell.
 
 
 HEADS = [Head.H0, Head.H1, Head.H2, Head.H12]
@@ -57,8 +57,7 @@ class Transition:
     direction: Direction
 
     def __str__(self):
-        return f"{self.state} {self.letter_current} {self.state_target} "\
-               f"{self.letter_to_write} {self.direction}"
+        return f"{self.state} {self.letter_current} {self.state_target} " f"{self.letter_to_write} {self.direction}"
 
     def md5(self):
         result = hashlib.md5(str(self).encode("utf-8"))
@@ -134,18 +133,18 @@ class TapeInitialiser:
         # 1. Go to right until we find a BLANK.
         t.add(Transition(STATE_INIT, BLANK, state_exit, LETTER_BEGIN, DIRECTION_RIGHT))
         for l in ALPHABET_WITHOUT_BLANK:
-            t.add(Transition(STATE_INIT, l, state_step1, LETTER_BEGIN+l, DIRECTION_STAY))
+            t.add(Transition(STATE_INIT, l, state_step1, LETTER_BEGIN + l, DIRECTION_STAY))
         for l in ALPHABET_WITHOUT_BLANK:
             t.add(Transition(state_step1, l, state_step1, l, DIRECTION_RIGHT))
-            t.add(Transition(state_step1, LETTER_BEGIN+l, state_step1, LETTER_BEGIN+l, DIRECTION_RIGHT))
+            t.add(Transition(state_step1, LETTER_BEGIN + l, state_step1, LETTER_BEGIN + l, DIRECTION_RIGHT))
 
         t.add(Transition(state_step1, BLANK, state_step2, BLANK, DIRECTION_LEFT))
 
         # 2. Move characters to right by one, going to the left (beginning) until # found.
         for a, b in itertools.product(ALPHABET_WITHOUT_BLANK, ["#", ""]):
             l = a + b
-            write_letter = state_step2+"_"+l
-            go_left = write_letter+"_goleft"
+            write_letter = state_step2 + "_" + l
+            go_left = write_letter + "_goleft"
             t.add(Transition(state_step2, l, write_letter, l, DIRECTION_RIGHT))
             for ln in ALPHABET:
                 t.add(Transition(write_letter, ln, go_left, l, DIRECTION_LEFT))
@@ -153,7 +152,7 @@ class TapeInitialiser:
 
         for l in ALPHABET_WITHOUT_BLANK:
             state_before_exit = state_exit + f"_{l}"
-            t.add(Transition(state_step2, LETTER_BEGIN+l, state_before_exit, LETTER_BEGIN, DIRECTION_RIGHT))
+            t.add(Transition(state_step2, LETTER_BEGIN + l, state_before_exit, LETTER_BEGIN, DIRECTION_RIGHT))
             for l2 in ALPHABET_WITHOUT_BLANK:
                 t.add(Transition(state_before_exit, l2, state_exit, l, DIRECTION_STAY))
 
@@ -174,12 +173,28 @@ class TapeInitialiser:
         t.add(Transition(state_step1, BLANK, state_step1_goback, MachineLetter(BLANK, BLANK, Head.H0), DIRECTION_LEFT))
 
         for l in ALPHABET_WITHOUT_BLANK:
-            t.add(Transition(state_step1_goback, MachineLetter(l, BLANK, Head.H0), state_step1_goback, MachineLetter(l, BLANK, Head.H0), DIRECTION_LEFT))
+            t.add(
+                Transition(
+                    state_step1_goback,
+                    MachineLetter(l, BLANK, Head.H0),
+                    state_step1_goback,
+                    MachineLetter(l, BLANK, Head.H0),
+                    DIRECTION_LEFT,
+                )
+            )
 
         t.add(Transition(state_step1_goback, LETTER_BEGIN, state_step2_fixheads, LETTER_BEGIN, DIRECTION_RIGHT))
 
         for l in ALPHABET:
-            t.add(Transition(state_step2_fixheads, MachineLetter(l, BLANK, Head.H0), state_exit, MachineLetter(l, BLANK, Head.H12), DIRECTION_LEFT))
+            t.add(
+                Transition(
+                    state_step2_fixheads,
+                    MachineLetter(l, BLANK, Head.H0),
+                    state_exit,
+                    MachineLetter(l, BLANK, Head.H12),
+                    DIRECTION_LEFT,
+                )
+            )
 
         return t.get_all()
 
@@ -226,13 +241,7 @@ class TransitionsEmulator:
 
     def _init_emulator(self) -> Iterable[Transition]:
         t = Transitions()
-        t.add(Transition(
-            "init",
-            "#",
-            TransitionPrepare("input_letters", None, None),
-            "#start",
-            DIRECTION_RIGHT
-        ))
+        t.add(Transition("init", "#", TransitionPrepare("input_letters", None, None), "#start", DIRECTION_RIGHT))
         return t.get_all()
 
     def _find_states(self, transitions: Iterable[TransitionTwoTape]):
@@ -260,13 +269,53 @@ class TransitionsEmulator:
                     if not found2:
                         l2v = None
 
-                    t.add(Transition(TransitionPrepare(step_name, l1v, l2v), MachineLetter(l1, l2, Head.H0), TransitionPrepare(step_name, l1v, l2v), MachineLetter(l1, l2, Head.H0), direction))
-                    t.add(Transition(TransitionPrepare(step_name, l1v, l2v), MachineLetter(l1, l2, Head.H1), TransitionPrepare(step_name, l1, l2v), MachineLetter(l1, l2, Head.H1), direction))
-                    t.add(Transition(TransitionPrepare(step_name, l1v, l2v), MachineLetter(l1, l2, Head.H2), TransitionPrepare(step_name, l1v, l2), MachineLetter(l1, l2, Head.H2), direction))
-                    t.add(Transition(TransitionPrepare(step_name, l1v, l2v), MachineLetter(l1, l2, Head.H12), TransitionPrepare(step_name, l1, l2), MachineLetter(l1, l2, Head.H12), DIRECTION_LEFT))
+                    t.add(
+                        Transition(
+                            TransitionPrepare(step_name, l1v, l2v),
+                            MachineLetter(l1, l2, Head.H0),
+                            TransitionPrepare(step_name, l1v, l2v),
+                            MachineLetter(l1, l2, Head.H0),
+                            direction,
+                        )
+                    )
+                    t.add(
+                        Transition(
+                            TransitionPrepare(step_name, l1v, l2v),
+                            MachineLetter(l1, l2, Head.H1),
+                            TransitionPrepare(step_name, l1, l2v),
+                            MachineLetter(l1, l2, Head.H1),
+                            direction,
+                        )
+                    )
+                    t.add(
+                        Transition(
+                            TransitionPrepare(step_name, l1v, l2v),
+                            MachineLetter(l1, l2, Head.H2),
+                            TransitionPrepare(step_name, l1v, l2),
+                            MachineLetter(l1, l2, Head.H2),
+                            direction,
+                        )
+                    )
+                    t.add(
+                        Transition(
+                            TransitionPrepare(step_name, l1v, l2v),
+                            MachineLetter(l1, l2, Head.H12),
+                            TransitionPrepare(step_name, l1, l2),
+                            MachineLetter(l1, l2, Head.H12),
+                            DIRECTION_LEFT,
+                        )
+                    )
 
                     if found1 and found2:
-                        t.add(Transition(TransitionPrepare(step_name, l1v, l2v), BLANK, TransitionPrepare(step_name, l1v, l2v), BLANK, DIRECTION_LEFT))
+                        t.add(
+                            Transition(
+                                TransitionPrepare(step_name, l1v, l2v),
+                                BLANK,
+                                TransitionPrepare(step_name, l1v, l2v),
+                                BLANK,
+                                DIRECTION_LEFT,
+                            )
+                        )
 
         return t.get_all()
 
@@ -274,29 +323,41 @@ class TransitionsEmulator:
         t = Transitions()
 
         if transition.state_target in [STATE_ACCEPT, STATE_REJECT]:
-            t.add(Transition(
-                TransitionPrepare("input_letters", transition.letter_current, transition.letter2_current),
-                "#" + transition.state,
-                transition.state_target,
-                LETTER_BEGIN,
-                DIRECTION_STAY
-            ))
+            t.add(
+                Transition(
+                    TransitionPrepare("input_letters", transition.letter_current, transition.letter2_current),
+                    "#" + transition.state,
+                    transition.state_target,
+                    LETTER_BEGIN,
+                    DIRECTION_STAY,
+                )
+            )
         else:
-            t.add(Transition(
-                TransitionPrepare("input_letters", transition.letter_current, transition.letter2_current),
-                "#" + transition.state,
-                TransitionEmulate("emulate_move", transition.letter_to_write, transition.direction1, transition.letter2_to_write, transition.direction2),
-                "#" + transition.state_target,
-                DIRECTION_RIGHT
-            ))
+            t.add(
+                Transition(
+                    TransitionPrepare("input_letters", transition.letter_current, transition.letter2_current),
+                    "#" + transition.state,
+                    TransitionEmulate(
+                        "emulate_move",
+                        transition.letter_to_write,
+                        transition.direction1,
+                        transition.letter2_to_write,
+                        transition.direction2,
+                    ),
+                    "#" + transition.state_target,
+                    DIRECTION_RIGHT,
+                )
+            )
 
-        t.add(Transition(
-            "emulate_move_DONE_DONE",
-            "#" + transition.state,
-            "input_letters_None_None",
-            "#" + transition.state,
-            DIRECTION_RIGHT
-        ))
+        t.add(
+            Transition(
+                "emulate_move_DONE_DONE",
+                "#" + transition.state,
+                "input_letters_None_None",
+                "#" + transition.state,
+                DIRECTION_RIGHT,
+            )
+        )
 
         return t.get_all()
 
@@ -311,7 +372,15 @@ class TransitionsEmulator:
                         if done1 and done2:
                             for h in [Head.H0, Head.H1, Head.H2, Head.H12]:
                                 state_done = TransitionEmulate(step_name, True, None, True, None)
-                                t.add(Transition(state_done, MachineLetter(l1, l2, h), state_done, MachineLetter(l1, l2, h), DIRECTION_LEFT))
+                                t.add(
+                                    Transition(
+                                        state_done,
+                                        MachineLetter(l1, l2, h),
+                                        state_done,
+                                        MachineLetter(l1, l2, h),
+                                        DIRECTION_LEFT,
+                                    )
+                                )
                             continue
 
                         l1v = ml1
@@ -323,24 +392,88 @@ class TransitionsEmulator:
 
                         state = TransitionEmulate(step_name, l1v, d1, l2v, d2)
 
-                        t.add(Transition(state, MachineLetter(l1, l2, Head.H0), state, MachineLetter(l1, l2, Head.H0), DIRECTION_RIGHT))
+                        t.add(
+                            Transition(
+                                state,
+                                MachineLetter(l1, l2, Head.H0),
+                                state,
+                                MachineLetter(l1, l2, Head.H0),
+                                DIRECTION_RIGHT,
+                            )
+                        )
 
                         if not done1:
                             state = TransitionEmulate(step_name, l1v, d1, l2v, d2)
-                            state_target = TransitionEmulate(step_name+"_do1", l1v, d1, l2v, d2)
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H1), state_target, MachineLetter(l1, l2, Head.H1), DIRECTION_STAY))
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H2), state, MachineLetter(l1, l2, Head.H2), DIRECTION_RIGHT))
+                            state_target = TransitionEmulate(step_name + "_do1", l1v, d1, l2v, d2)
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    DIRECTION_STAY,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    DIRECTION_STAY,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    state,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    DIRECTION_RIGHT,
+                                )
+                            )
                         if not done2:
                             state = TransitionEmulate(step_name, l1v, d1, l2v, d2)
-                            state_target = TransitionEmulate(step_name+"_do2", l1v, d1, l2v, d2)
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H2), state_target, MachineLetter(l1, l2, Head.H2), DIRECTION_STAY))
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H1), state, MachineLetter(l1, l2, Head.H1), DIRECTION_RIGHT))
+                            state_target = TransitionEmulate(step_name + "_do2", l1v, d1, l2v, d2)
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    DIRECTION_STAY,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    DIRECTION_STAY,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    state,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    DIRECTION_RIGHT,
+                                )
+                            )
                         if not done1 and not done2:
                             state = TransitionEmulate(step_name, l1v, d1, l2v, d2)
-                            state_target = TransitionEmulate(step_name+"_do12", l1v, d1, l2v, d2)
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
+                            state_target = TransitionEmulate(step_name + "_do12", l1v, d1, l2v, d2)
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    DIRECTION_STAY,
+                                )
+                            )
 
         return t.get_all()
 
@@ -357,35 +490,141 @@ class TransitionsEmulator:
                             l1v = True
 
                         if d2 == DIRECTION_STAY:
-                            state = TransitionEmulate(step_name+"_do2", l1v, d1, sl2, d2)
+                            state = TransitionEmulate(step_name + "_do2", l1v, d1, sl2, d2)
                             state_target = TransitionEmulate(step_name, l1v, d1, True, None)
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H2), state_target, MachineLetter(l1, sl2, Head.H2), DIRECTION_STAY))
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, sl2, Head.H12), DIRECTION_STAY))
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    state_target,
+                                    MachineLetter(l1, sl2, Head.H2),
+                                    DIRECTION_STAY,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    state_target,
+                                    MachineLetter(l1, sl2, Head.H12),
+                                    DIRECTION_STAY,
+                                )
+                            )
 
                         if d2 == DIRECTION_LEFT:
-                            state = TransitionEmulate(step_name+"_do2", l1v, d1, sl2, d2)
+                            state = TransitionEmulate(step_name + "_do2", l1v, d1, sl2, d2)
                             state_target = TransitionEmulate(step_name + "_do2r", l1v, d1, True, None)
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H2), state_target, MachineLetter(l1, sl2, Head.H0), DIRECTION_LEFT))
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, sl2, Head.H1), DIRECTION_LEFT))
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    state_target,
+                                    MachineLetter(l1, sl2, Head.H0),
+                                    DIRECTION_LEFT,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    state_target,
+                                    MachineLetter(l1, sl2, Head.H1),
+                                    DIRECTION_LEFT,
+                                )
+                            )
                             state_target2 = TransitionEmulate(step_name, l1v, d1, True, None)
-                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H2), DIRECTION_RIGHT))
-                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H1), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_RIGHT))
+                            t.add(
+                                Transition(
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H0),
+                                    state_target2,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    DIRECTION_RIGHT,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    state_target2,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    DIRECTION_RIGHT,
+                                )
+                            )
                             for s in self._states:
                                 letter_meta = LETTER_BEGIN + s
                                 state_targetp = TransitionEmulate(step_name + "_do2rr", sl1, d1, sl2, d2)
-                                t.add(Transition(state_target, letter_meta, state_targetp, letter_meta, DIRECTION_RIGHT))
-                                t.add(Transition(state_targetp, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H2), DIRECTION_STAY))
-                                t.add(Transition(state_targetp, MachineLetter(l1, l2, Head.H1), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
+                                t.add(
+                                    Transition(state_target, letter_meta, state_targetp, letter_meta, DIRECTION_RIGHT)
+                                )
+                                t.add(
+                                    Transition(
+                                        state_targetp,
+                                        MachineLetter(l1, l2, Head.H0),
+                                        state_target2,
+                                        MachineLetter(l1, l2, Head.H2),
+                                        DIRECTION_STAY,
+                                    )
+                                )
+                                t.add(
+                                    Transition(
+                                        state_targetp,
+                                        MachineLetter(l1, l2, Head.H1),
+                                        state_target2,
+                                        MachineLetter(l1, l2, Head.H12),
+                                        DIRECTION_STAY,
+                                    )
+                                )
 
                         if d2 == DIRECTION_RIGHT:
-                            state = TransitionEmulate(step_name+"_do2", l1v, d1, sl2, d2)
+                            state = TransitionEmulate(step_name + "_do2", l1v, d1, sl2, d2)
                             state_target = TransitionEmulate(step_name + "_do2l", l1v, d1, True, None)
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H2), state_target, MachineLetter(l1, sl2, Head.H0), DIRECTION_RIGHT))
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(l1, sl2, Head.H1), DIRECTION_RIGHT))
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    state_target,
+                                    MachineLetter(l1, sl2, Head.H0),
+                                    DIRECTION_RIGHT,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    state_target,
+                                    MachineLetter(l1, sl2, Head.H1),
+                                    DIRECTION_RIGHT,
+                                )
+                            )
                             state_target2 = TransitionEmulate(step_name, l1v, d1, True, None)
-                            t.add(Transition(state_target, BLANK, state_target2, MachineLetter(BLANK, BLANK, Head.H2),DIRECTION_LEFT))
-                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H2), DIRECTION_LEFT))
-                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H1), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_LEFT))
+                            t.add(
+                                Transition(
+                                    state_target,
+                                    BLANK,
+                                    state_target2,
+                                    MachineLetter(BLANK, BLANK, Head.H2),
+                                    DIRECTION_LEFT,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H0),
+                                    state_target2,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    DIRECTION_LEFT,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    state_target2,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    DIRECTION_LEFT,
+                                )
+                            )
 
         return t.get_all()
 
@@ -402,39 +641,143 @@ class TransitionsEmulator:
                             l2v = True
 
                         if d1 == DIRECTION_STAY:
-                            state = TransitionEmulate(step_name+"_do1", sl1, d1, l2v, d2)
+                            state = TransitionEmulate(step_name + "_do1", sl1, d1, l2v, d2)
                             state_target = TransitionEmulate(step_name, True, None, l2v, d2)
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H1), state_target, MachineLetter(sl1, l2, Head.H1), DIRECTION_STAY))
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(sl1, l2, Head.H12), DIRECTION_STAY))
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    state_target,
+                                    MachineLetter(sl1, l2, Head.H1),
+                                    DIRECTION_STAY,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    state_target,
+                                    MachineLetter(sl1, l2, Head.H12),
+                                    DIRECTION_STAY,
+                                )
+                            )
 
                         if d1 == DIRECTION_LEFT:
-                            state = TransitionEmulate(step_name+"_do1", sl1, d1, l2v, d2)
+                            state = TransitionEmulate(step_name + "_do1", sl1, d1, l2v, d2)
                             state_target = TransitionEmulate(step_name + "_do1r", True, None, l2v, d2)
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H1), state_target, MachineLetter(sl1, l2, Head.H0), DIRECTION_LEFT))
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(sl1, l2, Head.H2), DIRECTION_LEFT))
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    state_target,
+                                    MachineLetter(sl1, l2, Head.H0),
+                                    DIRECTION_LEFT,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    state_target,
+                                    MachineLetter(sl1, l2, Head.H2),
+                                    DIRECTION_LEFT,
+                                )
+                            )
                             state_target2 = TransitionEmulate(step_name, True, None, l2v, d2)
-                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H1), DIRECTION_RIGHT))
-                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H2), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_RIGHT))
+                            t.add(
+                                Transition(
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H0),
+                                    state_target2,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    DIRECTION_RIGHT,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    state_target2,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    DIRECTION_RIGHT,
+                                )
+                            )
                             for s in self._states:
                                 letter_meta = LETTER_BEGIN + s
                                 state_targetp = TransitionEmulate(step_name + "_do1rr", sl1, d1, sl2, d2)
-                                t.add(Transition(state_target, letter_meta, state_targetp, letter_meta, DIRECTION_RIGHT))
-                                t.add(Transition(state_targetp, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H1), DIRECTION_STAY))
-                                t.add(Transition(state_targetp, MachineLetter(l1, l2, Head.H2), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
+                                t.add(
+                                    Transition(state_target, letter_meta, state_targetp, letter_meta, DIRECTION_RIGHT)
+                                )
+                                t.add(
+                                    Transition(
+                                        state_targetp,
+                                        MachineLetter(l1, l2, Head.H0),
+                                        state_target2,
+                                        MachineLetter(l1, l2, Head.H1),
+                                        DIRECTION_STAY,
+                                    )
+                                )
+                                t.add(
+                                    Transition(
+                                        state_targetp,
+                                        MachineLetter(l1, l2, Head.H2),
+                                        state_target2,
+                                        MachineLetter(l1, l2, Head.H12),
+                                        DIRECTION_STAY,
+                                    )
+                                )
 
                         if d1 == DIRECTION_RIGHT:
-                            state = TransitionEmulate(step_name+"_do1", sl1, d1, l2v, d2)
+                            state = TransitionEmulate(step_name + "_do1", sl1, d1, l2v, d2)
                             state_target = TransitionEmulate(step_name + "_do1l", True, None, l2v, d2)
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H1), state_target, MachineLetter(sl1, l2, Head.H0), DIRECTION_RIGHT))
-                            t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(sl1, l2, Head.H2), DIRECTION_RIGHT))
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    state_target,
+                                    MachineLetter(sl1, l2, Head.H0),
+                                    DIRECTION_RIGHT,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    state_target,
+                                    MachineLetter(sl1, l2, Head.H2),
+                                    DIRECTION_RIGHT,
+                                )
+                            )
                             state_target2 = TransitionEmulate(step_name, True, None, l2v, d2)
-                            t.add(Transition(state_target, BLANK, state_target2, MachineLetter(BLANK, BLANK, Head.H1), DIRECTION_LEFT))
-                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H0), state_target2, MachineLetter(l1, l2, Head.H1), DIRECTION_LEFT))
-                            t.add(Transition(state_target, MachineLetter(l1, l2, Head.H2), state_target2, MachineLetter(l1, l2, Head.H12), DIRECTION_LEFT))
+                            t.add(
+                                Transition(
+                                    state_target,
+                                    BLANK,
+                                    state_target2,
+                                    MachineLetter(BLANK, BLANK, Head.H1),
+                                    DIRECTION_LEFT,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H0),
+                                    state_target2,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    DIRECTION_LEFT,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state_target,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    state_target2,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    DIRECTION_LEFT,
+                                )
+                            )
 
         return t.get_all()
-
-
 
     def _emulate_move_do12(self) -> Iterable[Transition]:
         t = Transitions()
@@ -443,31 +786,87 @@ class TransitionsEmulator:
             for d1, d2 in itertools.product(DIRECTIONS, DIRECTIONS):
                 for sl1, sl2 in itertools.product(ALPHABET, ALPHABET):
                     if d1 == DIRECTION_STAY:
-                        state = TransitionEmulate(step_name+"_do12", sl1, d1, sl2, d2)
-                        state_target = TransitionEmulate(step_name+"_do2", True, None, sl2, d2)
-                        t.add(Transition(state, MachineLetter(l1, l2, Head.H12), state_target, MachineLetter(sl1, l2, Head.H12), DIRECTION_STAY))
+                        state = TransitionEmulate(step_name + "_do12", sl1, d1, sl2, d2)
+                        state_target = TransitionEmulate(step_name + "_do2", True, None, sl2, d2)
+                        t.add(
+                            Transition(
+                                state,
+                                MachineLetter(l1, l2, Head.H12),
+                                state_target,
+                                MachineLetter(sl1, l2, Head.H12),
+                                DIRECTION_STAY,
+                            )
+                        )
                     if d1 == DIRECTION_LEFT:
-                        state1 = TransitionEmulate(step_name+"_do12", sl1, d1, sl2, d2)
-                        state2 = TransitionEmulate(step_name+"_do12l", sl1, d1, sl2, d2)
-                        t.add(Transition(state1, MachineLetter(l1, l2, Head.H12), state2, MachineLetter(sl1, l2, Head.H2), DIRECTION_LEFT))
-                        state1 = TransitionEmulate(step_name+"_do12l", sl1, d1, sl2, d2)
-                        state2 = TransitionEmulate(step_name+"_do2", True, None, sl2, d2)
-                        t.add(Transition(state1, MachineLetter(l1, l2, Head.H0), state2, MachineLetter(l1, l2, Head.H1), DIRECTION_RIGHT))
+                        state1 = TransitionEmulate(step_name + "_do12", sl1, d1, sl2, d2)
+                        state2 = TransitionEmulate(step_name + "_do12l", sl1, d1, sl2, d2)
+                        t.add(
+                            Transition(
+                                state1,
+                                MachineLetter(l1, l2, Head.H12),
+                                state2,
+                                MachineLetter(sl1, l2, Head.H2),
+                                DIRECTION_LEFT,
+                            )
+                        )
+                        state1 = TransitionEmulate(step_name + "_do12l", sl1, d1, sl2, d2)
+                        state2 = TransitionEmulate(step_name + "_do2", True, None, sl2, d2)
+                        t.add(
+                            Transition(
+                                state1,
+                                MachineLetter(l1, l2, Head.H0),
+                                state2,
+                                MachineLetter(l1, l2, Head.H1),
+                                DIRECTION_RIGHT,
+                            )
+                        )
                         for s in self._states:
                             letter_meta = LETTER_BEGIN + s
                             state1p = TransitionEmulate(step_name + "_do12ll", sl1, d1, sl2, d2)
                             t.add(Transition(state1, letter_meta, state1p, letter_meta, DIRECTION_RIGHT))
-                            t.add(Transition(state1p, MachineLetter(l1, l2, Head.H0), state2, MachineLetter(l1, l2, Head.H1), DIRECTION_STAY))
-                            t.add(Transition(state1p, MachineLetter(l1, l2, Head.H2), state2, MachineLetter(l1, l2, Head.H12), DIRECTION_STAY))
+                            t.add(
+                                Transition(
+                                    state1p,
+                                    MachineLetter(l1, l2, Head.H0),
+                                    state2,
+                                    MachineLetter(l1, l2, Head.H1),
+                                    DIRECTION_STAY,
+                                )
+                            )
+                            t.add(
+                                Transition(
+                                    state1p,
+                                    MachineLetter(l1, l2, Head.H2),
+                                    state2,
+                                    MachineLetter(l1, l2, Head.H12),
+                                    DIRECTION_STAY,
+                                )
+                            )
 
                     if d1 == DIRECTION_RIGHT:
-                        state1 = TransitionEmulate(step_name+"_do12", sl1, d1, sl2, d2)
-                        state2 = TransitionEmulate(step_name+"_do12r", sl1, d1, sl2, d2)
-                        t.add(Transition(state1, MachineLetter(l1, l2, Head.H12), state2, MachineLetter(sl1, l2, Head.H2), DIRECTION_RIGHT))
-                        state1 = TransitionEmulate(step_name+"_do12r", sl1, d1, sl2, d2)
-                        state2 = TransitionEmulate(step_name+"_do2", True, None, sl2, d2)
+                        state1 = TransitionEmulate(step_name + "_do12", sl1, d1, sl2, d2)
+                        state2 = TransitionEmulate(step_name + "_do12r", sl1, d1, sl2, d2)
+                        t.add(
+                            Transition(
+                                state1,
+                                MachineLetter(l1, l2, Head.H12),
+                                state2,
+                                MachineLetter(sl1, l2, Head.H2),
+                                DIRECTION_RIGHT,
+                            )
+                        )
+                        state1 = TransitionEmulate(step_name + "_do12r", sl1, d1, sl2, d2)
+                        state2 = TransitionEmulate(step_name + "_do2", True, None, sl2, d2)
                         t.add(Transition(state1, BLANK, state2, MachineLetter(BLANK, BLANK, Head.H1), DIRECTION_LEFT))
-                        t.add(Transition(state1, MachineLetter(l1, l2, Head.H0), state2, MachineLetter(l1, l2, Head.H1), DIRECTION_LEFT))
+                        t.add(
+                            Transition(
+                                state1,
+                                MachineLetter(l1, l2, Head.H0),
+                                state2,
+                                MachineLetter(l1, l2, Head.H1),
+                                DIRECTION_LEFT,
+                            )
+                        )
 
         return t.get_all()
 
@@ -528,4 +927,3 @@ if __name__ == "__main__":
     transitions = parse_file(sys.argv[1])
     transitions_one_tape = translate(transitions)
     print("\n".join([str(t) for t in transitions_one_tape]))
-

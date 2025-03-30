@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from typing import NewType, Set
 
 
-Letter = NewType('Letter', str)
-State = NewType('State', str)
-Direction = NewType('Direction', str)
+Letter = NewType("Letter", str)
+State = NewType("State", str)
+Direction = NewType("Direction", str)
 
 BLANK: Letter = Letter("0")
 STATE_INIT: State = State("start")
@@ -25,10 +25,12 @@ class Transition:
     letter_to_write: Letter
     direction: Direction
 
+
 @dataclass
 class Position:
     state: State
     letter: Letter
+
 
 @dataclass
 class Move:
@@ -49,7 +51,9 @@ class MachineDefinition:
                 self._definition[t.state_current] = {}
             if t.letter_current not in self._definition[t.state_current]:
                 self._definition[t.state_current][t.letter_current] = []
-            self._definition[t.state_current][t.letter_current].append(Move(t.letter_to_write, t.direction, t.state_target))
+            self._definition[t.state_current][t.letter_current].append(
+                Move(t.letter_to_write, t.direction, t.state_target)
+            )
 
     def evaluate_moves(self, pos: Position) -> [Move]:
         try:
@@ -96,7 +100,7 @@ class MachineState:
             self._head += 1
             if self._head >= len(self._tape):
                 self._tape = self._tape + [BLANK]
-        else: # move.direction == DIRECTION_STAY:
+        else:  # move.direction == DIRECTION_STAY:
             pass
 
 
